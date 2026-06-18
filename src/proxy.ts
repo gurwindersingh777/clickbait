@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server"
 
-const protectedRoutes = ["/dashboard"]
 const authRoutes = ["/login", "/register"]
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   const sessionCookie =
@@ -12,7 +11,7 @@ export function proxy(request: NextRequest) {
 
   const isAuthenticated = !!sessionCookie
 
-  if (protectedRoutes.includes(pathname) && !isAuthenticated) {
+  if (pathname.startsWith("/dashboard") && !isAuthenticated) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
@@ -20,13 +19,9 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
-  if (pathname === "/" && isAuthenticated) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
-
   return NextResponse.next()
 }
 
 export const config = {
-  matcher: ["/", "/login", "/register", "/dashboard"],
-};
+  matcher: ["/dashboard/:path*", "/login", "/register"]
+}
