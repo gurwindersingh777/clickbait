@@ -3,14 +3,15 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Lock } from "lucide-react"
+import { Loader2, Lock } from "lucide-react"
 import { PRESETS, ASPECT_RATIOS } from "@/constants/presets"
 import { generateSchema, type GenerateFormValues } from "@/schemas/generateSchema"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Tier } from "@prisma/client"
 import { cn } from "@/lib/utils"
-
+import axios from "axios"
+import { Skeleton } from "../ui/skeleton"
 
 export default function GenerateForm({ tier }: { tier: Tier }) {
   const presetEntries = Object.entries(PRESETS)
@@ -18,6 +19,13 @@ export default function GenerateForm({ tier }: { tier: Tier }) {
 
   const [selectedPreset, setSelectedPreset] = useState(presetEntries[0][0])
   const [baseImage, setBaseImage] = useState<File | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<{
+    thumbnails: string[]
+    titles: string[]
+  } | null>(null)
+
 
   const {
     register,
@@ -40,8 +48,28 @@ export default function GenerateForm({ tier }: { tier: Tier }) {
   const selectedAspectRatio = watch("aspectRatio")
   const selectedQuality = watch("quality")
 
-  const onSubmit = (data: GenerateFormValues) => {
-    // gernerate
+  const onSubmit = async (data: GenerateFormValues) => {
+    setResult(null)
+    setError(null)
+    setIsGenerating(true)
+
+    try {
+      const formData = new FormData()
+      formData.append("preset", data.preset)
+      formData.append("prompt", data.prompt)
+      formData.append("aspectRatio", data.aspectRatio)
+      formData.append("quality", data.quality)
+      if (baseImage) formData.append("baseImage", baseImage)
+
+      const response = await axios.post("/api/generate", formData)
+      setResult(response.data)
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        setError(err.response?.data?.error ?? "Something went wrong")
+      }
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const canUseAspectRatio = (ratio: string) => {
@@ -199,20 +227,31 @@ export default function GenerateForm({ tier }: { tier: Tier }) {
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex flex-col items-center gap-3">
         <Button
           type="submit"
-          disabled={!isValid}
+          disabled={!isValid || isGenerating}
           className="h-11 w-full rounded-xl bg-violet-600 hover:bg-violet-700"
         >
-          Generate Thumbnail
+          {isGenerating
+            ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Generating...</>
+            : "Generate Thumbnails"
+          }
         </Button>
+        {error && <div className=" text-sm text-red-400"> {error}</div>}
       </div>
 
-      <section className="rounded-2xl border border-dashed border-zinc-800 p-10 text-center">
-        <p className="text-sm text-zinc-500">
+      <section className="rounded-2xl border border-dashed border-zinc-800 p-6">
+        {isGenerating ? (
+          <div className="mt-8 grid grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-video w-full bg-neutral-800 rounded-2xl" />
+            ))}
+          </div>
+        ) : <p className="text-sm text-zinc-500 text-center">
           Generated thumbnails will appear here
-        </p>
+        </p>}
+
       </section>
     </form>
   )
